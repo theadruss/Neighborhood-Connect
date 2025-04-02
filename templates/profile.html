@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - Neighborhood Connect{% endblock %}
+
+{% block content %}
+<h1>Admin Dashboard</h1>
+<p class="lead">Manage your neighborhood community.</p>
+
+<ul class="nav nav-tabs mb-4" id="adminTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="users-tab" data-bs-toggle="tab" data-bs-target="#users" type="button" role="tab" aria-controls="users" aria-selected="true">Users</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="posts-tab" data-bs-toggle="tab" data-bs-target="#posts" type="button" role="tab" aria-controls="posts" aria-selected="false">Posts</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="incidents-tab" data-bs-toggle="tab" data-bs-target="#incidents" type="button" role="tab" aria-controls="incidents" aria-selected="false">Incidents</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="groups-tab" data-bs-toggle="tab" data-bs-target="#groups" type="button" role="tab" aria-controls="groups" aria-selected="false">Groups</button>
+    </li>
+</ul>
+
+<div class="tab-content" id="adminTabsContent">
+    <div class="tab-pane fade show active" id="users" role="tabpanel" aria-labelledby="users-tab">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Users in {{ current_user.neighborhood.name }}</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Address</th>
+                                <th>Joined</th>
+                                <th>Admin</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <img src="{{ url_for('static', filename='uploads/' + user.profile_pic) }}" alt="Profile" class="profile-img me-2">
+                                            {{ user.name }}
+                                        </div>
+                                    </td>
+                                    <td>{{ user.email }}</td>
+                                    <td>{{ user.address }}</td>
+                                    <td>{{ user.created_at.strftime('%B %d, %Y') }}</td>
+                                    <td>
+                                        {% if user.is_admin %}
+                                            <span class="badge bg-primary">Yes</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">No</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <form method="POST" action="{{ url_for('toggle_admin', user_id=user.id) }}" class="d-inline">
+                                            <button type="submit" class="btn btn-sm btn-outline-primary">
+                                                {% if user.is_admin %}
+                                                    Remove Admin
+                                                {% else %}
+                                                    Make Admin
+                                                {% endif %}
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="tab-pane fade" id="posts" role="tabpanel" aria-labelledby="posts-tab">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">All Posts in {{ current_user.neighborhood.name }}</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Author</th>
+                                <th>Date</th>
+                                <th>Group</th>
+                                <th>Comments</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for post in posts %}
+                                <tr>
+                                    <td>{{ post.title }}</td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <img src="{{ url_for('static', filename='uploads/' + post.author.profile_pic) }}" alt="Profile" class="profile-img me-2">
+                                            {{ post.author.name }}
+                                        </div>
+                                    </td>
+                                    <td>{{ post.created_at.strftime('%B %d, %Y') }}</td>
+                                    <td>
+                                        {% if post.group %}
+                                            <a href="{{ url_for('view_group', group_id=post.group.id) }}">{{ post.group.name }}</a>
+                                        {% else %}
+                                            <span class="text-muted">Neighborhood</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ post.comments|length }}</td>
+                                    <td>
+                                        <a href="{{ url_for('view_post', post_id=post.id) }}" class="btn btn-sm btn-outline-primary">View</a>
+                                        <form method="POST" action="{{ url_for('delete_post', post_id=post.id) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this post?');">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="tab-pane fade" id="incidents" role="tabpanel" aria-labelledby="incidents-tab">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">All Incidents in {{ current_user.neighborhood.name }}</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Type</th>
+                                <th>Reporter</th>
+                                <th>Date</th>
+                                <th>Location</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for incident in incidents %}
+                                <tr>
+                                    <td>{{ incident.title }}</td>
+                                    <td><span class="badge bg-danger">{{ incident.incident_type }}</span></td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <img src="{{ url_for('static', filename='uploads/' + incident.reporter.profile_pic) }}" alt="Profile" class="profile-img me-2">
+                                            {{ incident.reporter.name }}
+                                        </div>
+                                    </td>
+                                    <td>{{ incident.created_at.strftime('%B %d, %Y') }}</td>
+                                    <td>{{ incident.location }}</td>
+                                    <td>
+                                        <a href="{{ url_for('view_incident', incident_id=incident.id) }}" class="btn btn-sm btn-outline-primary">View</a>
+                                        <form method="POST" action="{{ url_for('delete_incident', incident_id=incident.id) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this incident?');">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="tab-pane fade" id="groups" role="tabpanel" aria-labelledby="groups-tab">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">All Groups in {{ current_user.neighborhood.name }}</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Creator</th>
+                                <th>Created</th>
+                                <th>Members</th>
+                                <th>Posts</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for group in groups %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <img src="{{ url_for('static', filename='uploads/' + group.image) }}" alt="{{ group.name }}" class="img-thumbnail me-2" style="width: 50px; height: 50px; object-fit: cover;">
+                                            {{ group.name }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <img src="{{ url_for('static', filename='uploads/' + group.creator.profile_pic) }}" alt="Profile" class="profile-img me-2">
+                                            {{ group.creator.name }}
+                                        </div>
+                                    </td>
+                                    <td>{{ group.created_at.strftime('%B %d, %Y') }}</td>
+                                    <td>{{ group.members|length }}</td>
+                                    <td>{{ group.posts|length }}</td>
+                                    <td>
+                                        <a href="{{ url_for('view_group', group_id=group.id) }}" class="btn btn-sm btn-outline-primary">View</a>
+                                        <form method="POST" action="{{ url_for('admin_delete_group', group_id=group.id) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this group? This will also delete all posts in the group.');">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

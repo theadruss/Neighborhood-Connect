@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}New Post - Neighborhood Connect{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="mb-0">Create New Post</h3>
+                {% if selected_group %}
+                    <p class="text-muted mb-0">Posting in: {{ selected_group.name }}</p>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('new_post') }}" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Title</label>
+                        <input type="text" class="form-control" id="title" name="title" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="content" class="form-label">Content</label>
+                        <textarea class="form-control" id="content" name="content" rows="5" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="image" class="form-label">Image (Optional)</label>
+                        <input type="file" class="form-control" id="image" name="image">
+                    </div>
+                    
+                    {% if not selected_group and user_groups %}
+                        <div class="mb-3">
+                            <label for="group_id" class="form-label">Post to Group (Optional)</label>
+                            <select class="form-select" id="group_id" name="group_id">
+                                <option value="">Post to Neighborhood (Everyone)</option>
+                                {% for group in user_groups %}
+                                    <option value="{{ group.id }}">{{ group.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">If you select a group, only group members will see this post.</div>
+                        </div>
+                    {% elif selected_group %}
+                        <input type="hidden" name="group_id" value="{{ selected_group.id }}">
+                    {% endif %}
+                    
+                    <button type="submit" class="btn btn-primary">Create Post</button>
+                    {% if selected_group %}
+                        <a href="{{ url_for('view_group', group_id=selected_group.id) }}" class="btn btn-outline-secondary">Cancel</a>
+                    {% else %}
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">Cancel</a>
+                    {% endif %}
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

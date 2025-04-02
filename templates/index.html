@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row align-items-center">
+    <div class="col-md-6">
+        <h1>Welcome to Neighborhood Connect</h1>
+        <p class="lead">Connect with your neighbors, share information, and keep your community safe.</p>
+        <div class="mt-4">
+            <a href="{{ url_for('register') }}" class="btn btn-primary me-2">Join Now</a>
+            <a href="{{ url_for('login') }}" class="btn btn-outline-secondary">Login</a>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <img src="{{ url_for('static', filename='uploads/neighborhood.jpg') }}" alt="Neighborhood" class="img-fluid rounded">
+    </div>
+</div>
+
+<div class="row mt-5">
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-users fa-3x text-primary mb-3"></i>
+                <h3>Connect</h3>
+                <p>Connect with neighbors and build a stronger community.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-bullhorn fa-3x text-primary mb-3"></i>
+                <h3>Share</h3>
+                <p>Share important information, events, and recommendations.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-shield-alt fa-3x text-primary mb-3"></i>
+                <h3>Protect</h3>
+                <p>Report incidents and keep your neighborhood safe.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

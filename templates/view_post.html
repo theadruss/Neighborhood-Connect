@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}{{ post.title }} - Neighborhood Connect{% endblock %}
+
+{% block content %}
+<div class="card post-card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+            <img src="{{ url_for('static', filename='uploads/' + post.author.profile_pic) }}" alt="Profile" class="profile-img me-2">
+            <div>
+                <h5 class="mb-0">{{ post.title }}</h5>
+                <small class="text-muted">Posted by {{ post.author.name }} on {{ post.created_at.strftime('%B %d, %Y at %I:%M %p') }}</small>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <p class="card-text">{{ post.content }}</p>
+        {% if post.image %}
+            <img src="{{ url_for('static', filename='uploads/' + post.image) }}" alt="Post Image" class="img-fluid rounded mb-3">
+        {% endif %}
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Comments ({{ post.comments|length }})</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('add_comment', post_id=post.id) }}" class="mb-4">
+            <div class="mb-3">
+                <label for="content" class="form-label">Add a comment</label>
+                <textarea class="form-control" id="content" name="content" rows="3" required></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Submit</button>
+        </form>
+        
+        <div class="comment-section">
+            {% if post.comments %}
+                {% for comment in post.comments|sort(attribute='created_at', reverse=true) %}
+                    <div class="comment">
+                        <div class="d-flex align-items-center mb-2">
+                            <img src="{{ url_for('static', filename='uploads/' + comment.author.profile_pic) }}" alt="Profile" class="profile-img me-2">
+                            <div>
+                                <h6 class="mb-0">{{ comment.author.name }}</h6>
+                                <small class="text-muted">{{ comment.created_at.strftime('%B %d, %Y at %I:%M %p') }}</small>
+                            </div>
+                        </div>
+                        <p class="mb-0">{{ comment.content }}</p>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p>No comments yet. Be the first to comment!</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="text-center">
+    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">Back to Dashboard</a>
+</div>
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}{{ incident.title }} - Neighborhood Connect{% endblock %}
+
+{% block content %}
+<div class="card incident-card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+            <img src="{{ url_for('static', filename='uploads/' + incident.reporter.profile_pic) }}" alt="Profile" class="profile-img me-2">
+            <div>
+                <h5 class="mb-0">{{ incident.title }}</h5>
+                <small class="text-muted">Reported by {{ incident.reporter.name }} on {{ incident.created_at.strftime('%B %d, %Y at %I:%M %p') }}</small>
+            </div>
+        </div>
+        <span class="badge bg-danger">{{ incident.incident_type }}</span>
+    </div>
+    <div class="card-body">
+        <p class="card-text">{{ incident.description }}</p>
+        <p><strong>Location:</strong> {{ incident.location }}</p>
+        {% if incident.image %}
+            <img src="{{ url_for('static', filename='uploads/' + incident.image) }}" alt="Incident Image" class="img-fluid rounded mb-3">
+        {% endif %}
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Comments ({{ incident.comments|length }})</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('add_incident_comment', incident_id=incident.id) }}" class="mb-4">
+            <div class="mb-3">
+                <label for="content" class="form-label">Add a comment</label>
+                <textarea class="form-control" id="content" name="content" rows="3" required></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Submit</button>
+        </form>
+        
+        <div class="comment-section">
+            {% if incident.comments %}
+                {% for comment in incident.comments|sort(attribute='created_at', reverse=true) %}
+                    <div class="comment">
+                        <div class="d-flex align-items-center mb-2">
+                            <img src="{{ url_for('static', filename='uploads/' + comment.author.profile_pic) }}" alt="Profile" class="profile-img me-2">
+                            <div>
+                                <h6 class="mb-0">{{ comment.author.name }}</h6>
+                                <small class="text-muted">{{ comment.created_at.strftime('%B %d, %Y at %I:%M %p') }}</small>
+                            </div>
+                        </div>
+                        <p class="mb-0">{{ comment.content }}</p>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p>No comments yet. Be the first to comment!</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="text-center">
+    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">Back to Dashboard</a>
+</div>
+{% endblock %}

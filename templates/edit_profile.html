@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Profile - Neighborhood Connect{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="mb-0">Edit Profile</h3>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('edit_profile') }}" enctype="multipart/form-data">
+                    <div class="mb-3 text-center">
+                        <img src="{{ url_for('static', filename='uploads/' + user.profile_pic) }}" alt="Profile" class="profile-img-lg mb-3">
+                        <div class="mb-3">
+                            <label for="profile_pic" class="form-label">Change Profile Picture</label>
+                            <input type="file" class="form-control" id="profile_pic" name="profile_pic">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Full Name</label>
+                        <input type="text" class="form-control" id="name" name="name" value="{{ user.name }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="address" class="form-label">Address</label>
+                        <input type="text" class="form-control" id="address" name="address" value="{{ user.address }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" value="{{ user.email }}" disabled>
+                        <div class="form-text">Email cannot be changed.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Neighborhood</label>
+                        <input type="text" class="form-control" value="{{ user.neighborhood.name }}" disabled>
+                        <div class="form-text">Contact an administrator to change your neighborhood.</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                    <a href="{{ url_for('profile') }}" class="btn btn-outline-secondary">Cancel</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
