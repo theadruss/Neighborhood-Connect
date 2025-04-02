@@ -1,0 +1,18 @@
+{% if item %}
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="d-flex align-items-center">
+            {% if item.image %}
+            <img src="{{ url_for('static', filename='uploads/' + item.image) }}" 
+                 class="rounded me-3" style="width: 80px; height: 80px; object-fit: cover;">
+            {% endif %}
+            <div>
+                <h5 class="mb-1">{{ item.title }}</h5>
+                <p class="text-primary mb-1">${{ "%.2f"|format(item.price) }}</p>
+                <a href="{{ url_for('view_market_item', item_id=item.id) }}" 
+                   class="btn btn-sm btn-outline-primary">View Item</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}

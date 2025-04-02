@@ -4,6 +4,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from datetime import datetime
+from flask_socketio import SocketIO, emit
 import os
 
 app = Flask(__name__)
@@ -12,6 +13,9 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///neighborhood.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+socketio = SocketIO(app)
+
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
@@ -164,7 +168,18 @@ def mark_item_sold(item_id):
     flash('Item marked as sold!')
     return redirect(url_for('view_market_item', item_id=item.id))
 
+class Message(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)  # This is the critical column
+    is_read = db.Column(db.Boolean, default=False)
+    item_id = db.Column(db.Integer, db.ForeignKey('market_item.id'), nullable=True)
 
+    sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_messages')
+    receiver = db.relationship('User', foreign_keys=[receiver_id], backref='received_messages')
+    item = db.relationship('MarketItem', backref='messages')
 
 # New Group Models
 class Group(db.Model):
@@ -498,6 +513,130 @@ def market():
     
     return render_template('market.html', market_items=market_items)
 
+# Add this route in app.py with the other market routes
+@app.route('/market/item/<int:item_id>/contact', methods=['GET', 'POST'])
+@login_required
+def contact_seller(item_id):
+    item = MarketItem.query.get_or_404(item_id)
+    
+    if item.neighborhood_id != current_user.neighborhood_id:
+        abort(403)
+    
+    if item.user_id == current_user.id:
+        flash("You can't contact yourself about your own item.")
+        return redirect(url_for('view_market_item', item_id=item.id))
+    
+    if request.method == 'POST':
+        return redirect(url_for('view_conversation', 
+                             user_id=item.user_id, 
+                             item_id=item.id))
+    
+    return render_template('contact_seller.html', item=item)
+
+@app.route('/messages')
+@login_required
+def messages():
+    # Get all unique conversations
+    sent = db.session.query(Message.receiver_id).filter_by(sender_id=current_user.id).distinct()
+    received = db.session.query(Message.sender_id).filter_by(receiver_id=current_user.id).distinct()
+    user_ids = {id for (id,) in sent.union_all(received)}
+    
+    conversations = []
+    for user_id in user_ids:
+        user = User.query.get(user_id)
+        last_message = Message.query.filter(
+            ((Message.sender_id == current_user.id) & (Message.receiver_id == user_id)) |
+            ((Message.sender_id == user_id) & (Message.receiver_id == current_user.id))
+        ).order_by(Message.timestamp.desc()).first()
+        
+        unread_count = Message.query.filter_by(
+            sender_id=user_id,
+            receiver_id=current_user.id,
+            is_read=False
+        ).count()
+        
+        conversations.append({
+            'user': user,
+            'last_message': last_message,
+            'unread_count': unread_count
+        })
+    
+    # Sort by most recent message
+    conversations.sort(key=lambda x: x['last_message'].timestamp, reverse=True)
+    
+    return render_template('messages.html', conversations=conversations)
+
+@app.route('/messages/<int:user_id>')
+@login_required
+def view_conversation(user_id):
+    try:
+        # Get the other user
+        other_user = User.query.get(user_id)
+        if not other_user:
+            flash("User not found.")
+            return redirect(url_for('messages'))
+        
+        # Ensure users are in the same neighborhood
+        if other_user.neighborhood_id != current_user.neighborhood_id:
+            flash("You can only message users in your neighborhood.")
+            return redirect(url_for('messages'))
+        
+        # Mark messages as read
+        Message.query.filter_by(
+            sender_id=user_id,
+            receiver_id=current_user.id,
+            is_read=False
+        ).update({'is_read': True})
+        db.session.commit()
+        
+        # Get the conversation
+        messages = Message.query.filter(
+            ((Message.sender_id == current_user.id) & (Message.receiver_id == user_id)) |
+            ((Message.sender_id == user_id) & (Message.receiver_id == current_user.id))
+        ).order_by(Message.timestamp.asc()).all()
+        
+        # Get the item if this conversation started from a market item
+        item_id = request.args.get('item_id', type=int)
+        item = MarketItem.query.get(item_id) if item_id else None
+        
+        return render_template('conversation.html', 
+                            other_user=other_user, 
+                            messages=messages,
+                            item=item)
+    
+    except Exception as e:
+        app.logger.error(f"Error in view_conversation: {str(e)}")
+        flash("An error occurred while loading the conversation.")
+        return redirect(url_for('messages'))
+    
+@app.route('/messages/<int:user_id>/send', methods=['POST'])
+@login_required
+def send_message(user_id):
+    try:
+        other_user = User.query.get_or_404(user_id)
+        message_content = request.form.get('message')
+        item_id = request.args.get('item_id', type=int)
+        
+        if not message_content:
+            flash("Message cannot be empty.")
+            return redirect(url_for('view_conversation', user_id=user_id))
+        
+        new_message = Message(
+            sender_id=current_user.id,
+            receiver_id=user_id,
+            content=message_content,
+            item_id=item_id
+        )
+        
+        db.session.add(new_message)
+        db.session.commit()
+        
+        return redirect(url_for('view_conversation', user_id=user_id))
+    
+    except Exception as e:
+        app.logger.error(f"Error sending message: {str(e)}")
+        flash("An error occurred while sending your message.")
+        return redirect(url_for('messages'))
 
 # Group Routes
 @app.route('/groups')
@@ -925,15 +1064,24 @@ def reset_database():
             is_admin=True
         )
         db.session.add(admin_user)
+        
+        # Create a test user
+        test_user = User(
+            email="user@example.com",
+            name="Test User",
+            password=generate_password_hash("user123", method='scrypt'),
+            address="456 User Ave",
+            neighborhood_id=default_neighborhood.id
+        )
+        db.session.add(test_user)
         db.session.commit()
         
         print("Database has been reset with the current schema")
-
-# Uncomment this line to reset the database when you run the app
 #reset_database()
 
 
 if __name__ == '__main__':
+    socketio.run(app, debug=True)
     with app.app_context():
         db.create_all()
         

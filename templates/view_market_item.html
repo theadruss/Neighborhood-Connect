@@ -51,7 +51,7 @@
                     </div>
                     <p><i class="fas fa-map-marker-alt me-2"></i> {{ item.user.address }}</p>
                     <p><i class="fas fa-envelope me-2"></i> {{ item.user.email }}</p>
-                    <a href="#" class="btn btn-primary w-100">Contact Seller</a>
+                    <a href="{{ url_for('contact_seller', item_id=item.id) }}" class="btn btn-primary w-100">Contact Seller</a>
                 </div>
             </div>
             <div class="card mt-4">

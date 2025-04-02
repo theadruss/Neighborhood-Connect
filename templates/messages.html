@@ -1,61 +1,42 @@
 {% extends "base.html" %}
 
-{% block title %}Your Messages{% endblock %}
+{% block title %}Messages - Neighborhood Connect{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h4 class="mb-0">Your Messages</h4>
-                </div>
-                <div class="card-body">
-                    {% if conversations %}
-                    <div class="list-group">
-                        {% for conversation in conversations %}
-                        <a href="{{ url_for('contact_seller', item_id=conversation.item.id) }}" 
-                           class="list-group-item list-group-item-action">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div class="d-flex align-items-center">
-                                    <img src="{{ url_for('static', filename='uploads/' + conversation.item.image) if conversation.item.image else url_for('static', filename='images/default-item.jpg') }}" 
-                                         class="rounded me-3" width="60" height="60" alt="{{ conversation.item.title }}">
-                                    <div>
-                                        <h6 class="mb-1">{{ conversation.item.title }}</h6>
-                                        <small class="text-muted">
-                                            {% set other_user = conversation.participants|selectattr('user_id', '!=', current_user.id)|first %}
-                                            {% if other_user %}
-                                            Conversation with {{ other_user.user.name }}
-                                            {% endif %}
-                                        </small>
-                                        <p class="mb-0 text-truncate" style="max-width: 300px;">
-                                            {% if conversation.messages %}
-                                            {{ conversation.messages[-1].content|truncate(50) }}
-                                            {% endif %}
-                                        </p>
-                                    </div>
-                                </div>
-                                <div class="text-end">
-                                    <small class="text-muted">{{ conversation.updated_at|humanize }}</small>
-                                    {% set unread_count = conversation.messages|selectattr('created_at', '>', conversation.participants|selectattr('user_id', 'equalto', current_user.id)|first.last_read or datetime.min)|list|length %}
-                                    {% if unread_count > 0 %}
-                                    <span class="badge bg-primary rounded-pill">{{ unread_count }}</span>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </a>
-                        {% endfor %}
-                    </div>
-                    {% else %}
-                    <div class="text-center py-5">
-                        <i class="fas fa-comments fa-4x text-muted mb-3"></i>
-                        <h5>No messages yet</h5>
-                        <p class="text-muted">Start a conversation about an item in the marketplace</p>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
+    <h2>Your Messages</h2>
+    
+    {% if not conversations %}
+    <div class="alert alert-info mt-3">
+        You have no messages yet.
     </div>
+    {% else %}
+    <div class="list-group mt-3">
+        {% for conv in conversations %}
+        <a href="{{ url_for('view_conversation', user_id=conv.user.id) }}" 
+           class="list-group-item list-group-item-action {% if conv.unread_count > 0 %}list-group-item-primary{% endif %}">
+            <div class="d-flex w-100 justify-content-between">
+                <h5 class="mb-1">
+                    {{ conv.user.name }}
+                    {% if conv.unread_count > 0 %}
+                    <span class="badge bg-primary rounded-pill">{{ conv.unread_count }}</span>
+                    {% endif %}
+                </h5>
+                <small>{{ conv.last_message.timestamp.strftime('%b %d, %I:%M %p') }}</small>
+            </div>
+            <p class="mb-1">
+                {% if conv.last_message.sender_id == current_user.id %}
+                You: {{ conv.last_message.content|truncate(50) }}
+                {% else %}
+                {{ conv.last_message.content|truncate(50) }}
+                {% endif %}
+            </p>
+            {% if conv.last_message.item %}
+            <small class="text-muted">About: {{ conv.last_message.item.title }}</small>
+            {% endif %}
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
