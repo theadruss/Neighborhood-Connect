@@ -57,6 +57,143 @@
                             <i class="fas fa-plus"></i> Create Post in Group
                         </a>
                     </div>
+
+                    <!-- Add this below the group info section -->
+<ul class="nav nav-tabs mb-4" id="groupTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="posts-tab" data-bs-toggle="tab" data-bs-target="#posts" type="button" role="tab">
+            Posts ({{ posts|length }})
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="incidents-tab" data-bs-toggle="tab" data-bs-target="#incidents" type="button" role="tab">
+            Incidents ({{ group_incidents|length }})
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="polls-tab" data-bs-toggle="tab" data-bs-target="#polls" type="button" role="tab">
+            Polls ({{ polls|length }})
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="groupTabsContent">
+    <!-- Posts Tab -->
+    <div class="tab-pane fade show active" id="posts" role="tabpanel">
+        <!-- Existing posts content -->
+    </div>
+
+    <!-- Incidents Tab -->
+    <div class="tab-pane fade" id="incidents" role="tabpanel">
+        {% if is_member %}
+            <div class="mb-4">
+                <a href="{{ url_for('new_group_incident', group_id=group.id) }}" class="btn btn-danger">
+                    <i class="fas fa-exclamation-triangle"></i> Report Incident
+                </a>
+            </div>
+            
+            {% if group_incidents %}
+                {% for incident in group_incidents %}
+                    <div class="card incident-card mb-3">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center">
+                                <img src="{{ url_for('static', filename='uploads/' + incident.user.profile_pic) }}" alt="Profile" class="profile-img me-2">
+                                <div>
+                                    <h5 class="mb-0">{{ incident.title }}</h5>
+                                    <small class="text-muted">Reported by {{ incident.user.name }} on {{ incident.created_at.strftime('%B %d, %Y at %I:%M %p') }}</small>
+                                </div>
+                            </div>
+                            <span class="badge bg-danger">{{ incident.incident_type }}</span>
+                        </div>
+                        <div class="card-body">
+                            <p class="card-text">{{ incident.description|truncate(200) }}</p>
+                            <p><strong>Location:</strong> {{ incident.location }}</p>
+                            <a href="{{ url_for('view_group_incident', group_id=group.id, incident_id=incident.id) }}" class="btn btn-sm btn-outline-danger">
+                                View Details
+                            </a>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="alert alert-info">
+                    No incidents reported in this group yet.
+                </div>
+            {% endif %}
+        {% else %}
+            <div class="alert alert-warning">
+                Join this group to see and report incidents.
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Polls Tab -->
+    <div class="tab-pane fade" id="polls" role="tabpanel">
+        {% if is_member %}
+            <div class="mb-4">
+                <a href="{{ url_for('new_poll', group_id=group.id) }}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Create Poll
+                </a>
+            </div>
+            
+            {% if polls %}
+                {% for poll in polls %}
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5>{{ poll.question }}</h5>
+                            <small class="text-muted">
+                                Created by {{ poll.user.name }} on {{ poll.created_at.strftime('%B %d, %Y') }}
+                                {% if poll.expires_at %}
+                                    | Closes {{ poll.expires_at.strftime('%B %d, %Y') }}
+                                {% endif %}
+                            </small>
+                        </div>
+                        <div class="card-body">
+                            <form method="POST" action="{{ url_for('vote_poll', poll_id=poll.id) }}">
+                                {% for option in poll.options %}
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="radio" 
+                                               name="option_id" 
+                                               id="option{{ option.id }}" 
+                                               value="{{ option.id }}"
+                                               {% if poll.user_vote and poll.user_vote.id == option.id %}checked{% endif %}
+                                               {% if poll.user_has_voted or (poll.expires_at and poll.expires_at < datetime.utcnow()) %}disabled{% endif %}>
+                                        <label class="form-check-label d-flex justify-content-between" for="option{{ option.id }}">
+                                            <span>{{ option.text }}</span>
+                                            <span class="text-muted">{{ option.votes|length }} votes</span>
+                                        </label>
+                                        {% if option.votes|length > 0 %}
+                                            <div class="progress mt-1" style="height: 5px;">
+                                                <div class="progress-bar" role="progressbar" 
+                                                    data-percentage="{{ option.percentage }}">
+                                                </div>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                {% endfor %}
+                                <div class="mt-3">
+                                    {% if not poll.user_has_voted and (not poll.expires_at or poll.expires_at > datetime.utcnow()) %}
+                                        <button type="submit" class="btn btn-sm btn-primary">Vote</button>
+                                    {% endif %}
+                                    <small class="text-muted">
+                                        {{ poll.options|map(attribute='votes')|map('length')|sum }} total votes
+                                    </small>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="alert alert-info">
+                    No polls in this group yet.
+                </div>
+            {% endif %}
+        {% else %}
+            <div class="alert alert-warning">
+                Join this group to see and participate in polls.
+            </div>
+        {% endif %}
+    </div>
+</div>
                     
                     <h4>Group Posts</h4>
                     {% if posts %}
@@ -184,4 +321,11 @@
         </div>
     </div>
 </div>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.progress-bar[data-percentage]').forEach(bar => {
+            bar.style.width = bar.dataset.percentage + '%';
+        });
+    });
+    </script>
 {% endblock %}

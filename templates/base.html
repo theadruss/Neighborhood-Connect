@@ -53,6 +53,11 @@
         .comment:last-child {
             border-bottom: none;
         }
+        .progress-bar {
+            background-color: #4CAF50;
+            transition: width 0.3s ease;
+        }
+
         .footer {
             margin-top: 50px;
             padding: 20px 0;
@@ -112,7 +117,7 @@
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('messages') }}">
-                                <i class="fas fa-envelope"></i> Messages
+                                Messages
                             </a>
                         </li>
                         {% if current_user.is_admin %}

@@ -6,6 +6,7 @@ from werkzeug.utils import secure_filename
 from datetime import datetime
 from flask_socketio import SocketIO, emit
 from flask_migrate import Migrate
+from datetime import datetime, timedelta  
 import os
 
 app = Flask(__name__)
@@ -106,6 +107,59 @@ class MarketItem(db.Model):
     is_sold = db.Column(db.Boolean, default=False)
     
     user = db.relationship('User', backref='market_items')
+
+# Add these new models
+class GroupIncident(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    incident_type = db.Column(db.String(50), nullable=False)
+    location = db.Column(db.String(200), nullable=False)
+    image = db.Column(db.String(200))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False)
+    
+    user = db.relationship('User', backref='group_incidents')
+    group = db.relationship('Group', backref='group_incidents')  # This was missing
+    
+    comments = db.relationship('GroupIncidentComment', backref='incident', cascade="all, delete-orphan")
+
+class GroupIncidentComment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    incident_id = db.Column(db.Integer, db.ForeignKey('group_incident.id'), nullable=False)
+    
+    user = db.relationship('User', backref='group_incident_comments')
+
+class Poll(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    question = db.Column(db.String(200), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False)
+    
+    options = db.relationship('PollOption', backref='poll', lazy=True, cascade="all, delete-orphan")
+    user = db.relationship('User', backref='polls')
+
+class PollOption(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    text = db.Column(db.String(200), nullable=False)
+    poll_id = db.Column(db.Integer, db.ForeignKey('poll.id'), nullable=False)
+    
+    votes = db.relationship('PollVote', backref='option', lazy=True, cascade="all, delete-orphan")
+
+class PollVote(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    option_id = db.Column(db.Integer, db.ForeignKey('poll_option.id'), nullable=False)
+    voted_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (db.UniqueConstraint('user_id', 'option_id', name='_user_option_uc'),)
+    user = db.relationship('User', backref='poll_votes')
 
 # New Market Item
 @app.route('/market/new', methods=['GET', 'POST'])
@@ -774,7 +828,7 @@ def new_group():
 def view_group(group_id):
     group = Group.query.get_or_404(group_id)
     
-    # Ensure group is in user's neighborhood
+    # Check if group is in user's neighborhood
     if group.neighborhood_id != current_user.neighborhood_id:
         abort(403)
     
@@ -787,14 +841,34 @@ def view_group(group_id):
     # Get group posts
     posts = Post.query.filter_by(group_id=group.id).order_by(Post.created_at.desc()).all()
     
+    # Get group incidents
+    group_incidents = GroupIncident.query.filter_by(group_id=group.id).order_by(GroupIncident.created_at.desc()).all()
+    
+    # Get group polls
+    polls = Poll.query.filter_by(group_id=group.id).order_by(Poll.created_at.desc()).all()
+    
     # Get group members
     members = GroupMember.query.filter_by(group_id=group.id).all()
+
+    # Calculate vote percentages for each poll
+    for poll in polls:
+        total_votes = sum(len(option.votes) for option in poll.options)
+        for option in poll.options:
+            option.percentage = round((len(option.votes) / (total_votes or 1)) * 100, 2)
+        poll.user_vote = next(
+            (option for option in poll.options
+             if any(vote.user_id == current_user.id for vote in option.votes)),
+            None
+        )
     
     return render_template('view_group.html', 
-                          group=group, 
-                          is_member=is_member, 
-                          posts=posts, 
-                          members=members)
+                         group=group, 
+                         is_member=is_member, 
+                         posts=posts,
+                         group_incidents=group_incidents,
+                         polls=polls,
+                         members=members,
+                         datetime=datetime)
 
 @app.route('/group/<int:group_id>/join', methods=['POST'])
 @login_required
@@ -862,6 +936,161 @@ def leave_group(group_id):
     
     flash('You have left the group successfully.')
     return redirect(url_for('groups'))
+
+# Group Incidents
+@app.route('/group/<int:group_id>/incident/new', methods=['GET', 'POST'])
+@login_required
+def new_group_incident(group_id):
+    group = Group.query.get_or_404(group_id)
+    # Check if user is member
+    if not GroupMember.query.filter_by(user_id=current_user.id, group_id=group.id).first():
+        abort(403)
+    
+    if request.method == 'POST':
+        title = request.form.get('title')
+        description = request.form.get('description')
+        incident_type = request.form.get('incident_type')
+        location = request.form.get('location')
+        
+        image_filename = None
+        if 'image' in request.files:
+            file = request.files['image']
+            if file.filename != '':
+                filename = secure_filename(file.filename)
+                file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(file_path)
+                image_filename = filename
+        
+        new_incident = GroupIncident(
+            title=title,
+            description=description,
+            incident_type=incident_type,
+            location=location,
+            image=image_filename,
+            user_id=current_user.id,
+            group_id=group.id
+        )
+        
+        db.session.add(new_incident)
+        db.session.commit()
+        flash('Incident reported to group successfully!')
+        return redirect(url_for('view_group', group_id=group.id))
+    
+    return render_template('new_group_incident.html', group=group)
+
+@app.route('/group/<int:group_id>/incident/<int:incident_id>')
+@login_required
+def view_group_incident(group_id, incident_id):
+    group = Group.query.get_or_404(group_id)
+    incident = GroupIncident.query.get_or_404(incident_id)
+    
+    # Verify incident belongs to group
+    if incident.group_id != group.id:
+        abort(404)
+    
+    # Check if user is member
+    if not GroupMember.query.filter_by(user_id=current_user.id, group_id=group.id).first():
+        abort(403)
+    
+    return render_template('view_group_incident.html', 
+                         group=group,
+                         incident=incident)
+
+@app.route('/group/incident/<int:incident_id>/comment', methods=['POST'])
+@login_required
+def add_group_incident_comment(incident_id):
+    incident = GroupIncident.query.get_or_404(incident_id)
+    group = incident.group
+    
+    # Check if user is member
+    if not GroupMember.query.filter_by(user_id=current_user.id, group_id=group.id).first():
+        abort(403)
+    
+    content = request.form.get('content')
+    if not content:
+        flash('Comment cannot be empty')
+        return redirect(url_for('view_group_incident', group_id=group.id, incident_id=incident.id))
+    
+    comment = GroupIncidentComment(
+        content=content,
+        user_id=current_user.id,
+        incident_id=incident.id
+    )
+    
+    db.session.add(comment)
+    db.session.commit()
+    
+    flash('Comment added successfully')
+    return redirect(url_for('view_group_incident', group_id=group.id, incident_id=incident.id))
+
+# Polls
+@app.route('/group/<int:group_id>/poll/new', methods=['GET', 'POST'])
+@login_required
+def new_poll(group_id):
+    group = Group.query.get_or_404(group_id)
+    # Check if user is member
+    if not GroupMember.query.filter_by(user_id=current_user.id, group_id=group.id).first():
+        abort(403)
+    
+    if request.method == 'POST':
+        question = request.form.get('question')
+        days = int(request.form.get('days', 7))
+        options = [opt.strip() for opt in request.form.get('options').split('\n') if opt.strip()]
+        
+        if len(options) < 2:
+            flash('Please provide at least 2 options')
+            return redirect(url_for('new_poll', group_id=group.id))
+        
+        expires_at = datetime.utcnow() + timedelta(days=days)
+        new_poll = Poll(
+            question=question,
+            expires_at=expires_at,
+            user_id=current_user.id,
+            group_id=group.id
+        )
+        db.session.add(new_poll)
+        
+        for option_text in options:
+            option = PollOption(text=option_text, poll=new_poll)
+            db.session.add(option)
+        
+        db.session.commit()
+        flash('Poll created successfully!')
+        return redirect(url_for('view_group', group_id=group.id))
+    
+    return render_template('new_poll.html', group=group)
+
+@app.route('/poll/<int:poll_id>/vote', methods=['POST'])
+@login_required
+def vote_poll(poll_id):
+    poll = Poll.query.get_or_404(poll_id)
+    option_id = request.form.get('option_id')
+    
+    # Check if user is member
+    if not GroupMember.query.filter_by(user_id=current_user.id, group_id=poll.group_id).first():
+        abort(403)
+    
+    # Check if poll is still open
+    if poll.expires_at and poll.expires_at < datetime.utcnow():
+        flash('This poll has closed')
+        return redirect(url_for('view_group', group_id=poll.group_id))
+    
+    # Check if user already voted
+    existing_vote = PollVote.query.filter_by(user_id=current_user.id).join(PollOption).filter_by(poll_id=poll.id).first()
+    if existing_vote:
+        flash('You have already voted in this poll')
+        return redirect(url_for('view_group', group_id=poll.group_id))
+    
+    # Record vote
+    new_vote = PollVote(
+        user_id=current_user.id,
+        option_id=option_id
+    )
+    db.session.add(new_vote)
+    db.session.commit()
+    
+    flash('Your vote has been recorded')
+    return redirect(url_for('view_group', group_id=poll.group_id))
 
 @app.route('/group/<int:group_id>/make_admin/<int:user_id>', methods=['POST'])
 @login_required
