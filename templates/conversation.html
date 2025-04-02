@@ -1,18 +1,69 @@
-{% if item %}
-<div class="card mb-3">
-    <div class="card-body">
-        <div class="d-flex align-items-center">
-            {% if item.image %}
-            <img src="{{ url_for('static', filename='uploads/' + item.image) }}" 
-                 class="rounded me-3" style="width: 80px; height: 80px; object-fit: cover;">
-            {% endif %}
-            <div>
-                <h5 class="mb-1">{{ item.title }}</h5>
-                <p class="text-primary mb-1">${{ "%.2f"|format(item.price) }}</p>
-                <a href="{{ url_for('view_market_item', item_id=item.id) }}" 
-                   class="btn btn-sm btn-outline-primary">View Item</a>
+{% extends "base.html" %}
+
+{% block title %}Conversation with {{ other_user.name }} - Neighborhood Connect{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Conversation with {{ other_user.name }}</h2>
+    
+    {% if item %}
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="d-flex align-items-center">
+                {% if item.image %}
+                <img src="{{ url_for('static', filename='uploads/' + item.image) }}" 
+                     class="rounded me-3" style="width: 80px; height: 80px; object-fit: cover;">
+                {% endif %}
+                <div>
+                    <h5 class="mb-1">{{ item.title }}</h5>
+                    <p class="text-primary mb-1">${{ "%.2f"|format(item.price) }}</p>
+                    <a href="{{ url_for('view_market_item', item_id=item.id) }}" 
+                       class="btn btn-sm btn-outline-primary">View Item</a>
+                </div>
             </div>
         </div>
     </div>
+    {% endif %}
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="messages-container" style="max-height: 500px; overflow-y: auto; margin-bottom: 20px;">
+                {% for message in messages %}
+                <div class="mb-3 {% if message.sender_id == current_user.id %}text-end{% endif %}">
+                    <div class="d-flex {% if message.sender_id == current_user.id %}justify-content-end{% endif %}">
+                        <div class="{% if message.sender_id == current_user.id %}bg-primary text-white{% else %}bg-light{% endif %} p-3 rounded" style="max-width: 70%;">
+                            <div class="d-flex align-items-center mb-1">
+                                <img src="{{ url_for('static', filename='uploads/' + message.sender.profile_pic) }}" 
+                                     class="profile-img me-2">
+                                <strong>{{ message.sender.name }}</strong>
+                            </div>
+                            <p class="mb-0">{{ message.content }}</p>
+                            <small class="d-block text-end {% if message.sender_id == current_user.id %}text-white-50{% else %}text-muted{% endif %}">
+                                {{ message.timestamp.strftime('%b %d, %I:%M %p') }}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <form method="POST" action="{{ url_for('send_message', user_id=other_user.id) }}{% if item %}?item_id={{ item.id }}{% endif %}">
+                <div class="input-group">
+                    <input type="text" name="message" class="form-control" placeholder="Type your message..." required>
+                    <button type="submit" class="btn btn-primary">Send</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <a href="{{ url_for('messages') }}" class="btn btn-outline-secondary">Back to Messages</a>
 </div>
-{% endif %}
+
+<script>
+    // Auto-scroll to bottom of messages
+    window.onload = function() {
+        const container = document.querySelector('.messages-container');
+        container.scrollTop = container.scrollHeight;
+    };
+</script>
+{% endblock %}

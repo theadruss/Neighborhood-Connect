@@ -600,9 +600,9 @@ def view_conversation(user_id):
         item = MarketItem.query.get(item_id) if item_id else None
         
         return render_template('conversation.html', 
-                            other_user=other_user, 
-                            messages=messages,
-                            item=item)
+                         other_user=other_user, 
+                         messages=messages,
+                         item=item)
     
     except Exception as e:
         app.logger.error(f"Error in view_conversation: {str(e)}")
