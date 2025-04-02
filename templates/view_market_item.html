@@ -21,7 +21,7 @@
                         <span class="badge bg-danger">Sold</span>
                         {% endif %}
                     </div>
-                    <p class="h4 text-primary">${{ "%.2f"|format(item.price) }}</p>
+                    <p class="h4 text-primary">₹{{ "%.2f"|format(item.price) }}</p>
                     <p class="text-muted">Category: {{ item.category|title }}</p>
                     <hr>
                     <p class="card-text">{{ item.description }}</p>

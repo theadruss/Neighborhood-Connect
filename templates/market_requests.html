@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Market Requests - Neighborhood Connect{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Market Requests</h2>
+        <div>
+            <a href="{{ url_for('market') }}" class="btn btn-outline-secondary me-2">View Items for Sale</a>
+            <a href="{{ url_for('new_market_request') }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> New Request
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        {% for req in requests %}
+        <div class="col-md-6 mb-4">
+            <div class="card h-100 {% if req.is_fulfilled %}border-success{% endif %}">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <h5 class="card-title">{{ req.title }}</h5>
+                        {% if req.is_fulfilled %}
+                        <span class="badge bg-success">Fulfilled</span>
+                        {% else %}
+                        <span class="badge bg-info">{{ req.request_type|title }}</span>
+                        {% endif %}
+                    </div>
+                    <p class="card-text">{{ req.description }}</p>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="badge bg-light text-dark">{{ req.category|title }}</span>
+                            {% if req.max_price %}
+                            <span class="badge bg-light text-dark ms-1">Up to ₹{{ "%.2f"|format(req.max_price) }}</span>
+                            {% endif %}
+                        </div>
+                        <small class="text-muted">Posted by {{ req.user.name }}</small>
+                    </div>
+                </div>
+                <div class="card-footer bg-white d-flex justify-content-between">
+                    <small class="text-muted">{{ req.created_at.strftime('%b %d, %Y') }}</small>
+                    {% if req.user_id == current_user.id and not req.is_fulfilled %}
+                    <form method="POST" action="{{ url_for('fulfill_request', request_id=req.id) }}">
+                        <button type="submit" class="btn btn-sm btn-success">Mark as Fulfilled</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12">
+            <div class="alert alert-info">
+                No requests currently in your neighborhood market.
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

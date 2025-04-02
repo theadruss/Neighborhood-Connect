@@ -6,49 +6,132 @@
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2>Neighborhood Market</h2>
-        <a href="{{ url_for('new_market_item') }}" class="btn btn-primary">
-            <i class="fas fa-plus"></i> Sell Item
-        </a>
+        <div>
+            <a href="{{ url_for('new_market_item') }}" class="btn btn-primary me-2">
+                <i class="fas fa-plus"></i> Sell Item
+            </a>
+            <a href="{{ url_for('new_market_request') }}" class="btn btn-success">
+                <i class="fas fa-hand-paper"></i> Make Request
+            </a>
+        </div>
     </div>
 
-    <div class="row">
-        {% for item in market_items %}
-        <div class="col-md-4 mb-4">
-            <div class="card h-100">
-                {% if item.image %}
-                <img src="{{ url_for('static', filename='uploads/' + item.image) }}" class="card-img-top" alt="{{ item.title }}" style="height: 200px; object-fit: cover;">
-                {% else %}
-                <div class="card-img-top bg-secondary text-white d-flex align-items-center justify-content-center" style="height: 200px;">
-                    <i class="fas fa-camera fa-3x"></i>
+    <ul class="nav nav-tabs mb-4" id="marketTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="items-tab" data-bs-toggle="tab" data-bs-target="#items" type="button" role="tab">
+                Items for Sale ({{ market_items|length }})
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="requests-tab" data-bs-toggle="tab" data-bs-target="#requests" type="button" role="tab">
+                Requests ({{ market_requests|length }})
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="marketTabsContent">
+        <!-- Items Tab -->
+        <div class="tab-pane fade show active" id="items" role="tabpanel">
+            <div class="row">
+                {% for item in market_items %}
+                <div class="col-md-4 mb-4">
+                    <div class="card h-100 market-item-card">
+                        {% if item.image %}
+                        <img src="{{ url_for('static', filename='uploads/' + item.image) }}" class="card-img-top" alt="{{ item.title }}" style="height: 200px; object-fit: cover;">
+                        {% else %}
+                        <div class="card-img-top bg-secondary text-white d-flex align-items-center justify-content-center" style="height: 200px;">
+                            <i class="fas fa-camera fa-3x"></i>
+                        </div>
+                        {% endif %}
+                        <div class="card-body d-flex flex-column">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <h5 class="card-title">{{ item.title }}</h5>
+                                {% if item.is_sold %}
+                                <span class="badge bg-danger">Sold</span>
+                                {% endif %}
+                            </div>
+                            <p class="card-text">{{ item.description|truncate(100) }}</p>
+                            <div class="mt-auto">
+                                <p class="h5 text-primary">₹{{ "%.2f"|format(item.price) }}</p>
+                                <small class="text-muted">Posted by {{ item.user.name }} on {{ item.created_at.strftime('%b %d, %Y') }}</small>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-white">
+                            <a href="{{ url_for('view_market_item', item_id=item.id) }}" class="btn btn-outline-primary btn-sm">
+                                View Details
+                            </a>
+                        </div>
+                    </div>
                 </div>
-                {% endif %}
-                <div class="card-body d-flex flex-column">
+                {% else %}
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        No items currently listed in your neighborhood market.
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Requests Tab -->
+<div class="tab-pane fade" id="requests" role="tabpanel">
+    <div class="row">
+        {% for req in market_requests %}
+        <div class="col-md-6 mb-4">
+            <div class="card h-100 {% if req.is_fulfilled %}border-success{% endif %}">
+                <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start">
-                        <h5 class="card-title">{{ item.title }}</h5>
-                        {% if item.is_sold %}
-                        <span class="badge bg-danger">Sold</span>
+                        <h5 class="card-title">{{ req.title }}</h5>
+                        {% if req.is_fulfilled %}
+                        <span class="badge bg-success">Fulfilled</span>
+                        {% else %}
+                        <span class="badge bg-info">{{ req.request_type|title }}</span>
                         {% endif %}
                     </div>
-                    <p class="card-text">{{ item.description|truncate(100) }}</p>
-                    <div class="mt-auto">
-                        <p class="h5 text-primary">${{ "%.2f"|format(item.price) }}</p>
-                        <small class="text-muted">Posted by {{ item.user.name }} on {{ item.created_at.strftime('%b %d, %Y') }}</small>
+                    <p class="card-text">{{ req.description }}</p>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="badge bg-light text-dark">{{ req.category|title }}</span>
+                            {% if req.max_price %}
+                            <span class="badge bg-light text-dark ms-1">Up to ₹{{ "%.2f"|format(req.max_price) }}</span>
+                            {% endif %}
+                        </div>
+                        <small class="text-muted">Posted by {{ req.user.name }}</small>
                     </div>
                 </div>
-                <div class="card-footer bg-white">
-                    <a href="{{ url_for('view_market_item', item_id=item.id) }}" class="btn btn-outline-primary btn-sm">
-                        View Details
+                <div class="card-footer bg-white d-flex justify-content-between">
+                    <small class="text-muted">{{ req.created_at.strftime('%b %d, %Y') }}</small>
+                    {% if req.user_id == current_user.id and not req.is_fulfilled %}
+                    <form method="POST" action="{{ url_for('fulfill_request', request_id=req.id) }}">
+                        <button type="submit" class="btn btn-sm btn-success">Mark as Fulfilled</button>
+                    </form>
+                    {% elif not req.is_fulfilled %}
+                    <a href="{{ url_for('view_conversation', user_id=req.user_id) }}" class="btn btn-sm btn-primary">
+                        Contact
                     </a>
+                    {% endif %}
                 </div>
             </div>
         </div>
         {% else %}
         <div class="col-12">
             <div class="alert alert-info">
-                No items currently listed in your neighborhood market.
+                No requests currently in your neighborhood market.
             </div>
         </div>
         {% endfor %}
     </div>
 </div>
+    </div>
+</div>
+
+<script>
+// Activate the appropriate tab based on URL hash
+document.addEventListener('DOMContentLoaded', function() {
+    if(window.location.hash === '#requests') {
+        const tab = new bootstrap.Tab(document.getElementById('requests-tab'));
+        tab.show();
+    }
+});
+</script>
 {% endblock %}

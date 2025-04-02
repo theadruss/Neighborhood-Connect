@@ -5,6 +5,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from datetime import datetime
 from flask_socketio import SocketIO, emit
+from flask_migrate import Migrate
 import os
 
 app = Flask(__name__)
@@ -20,6 +21,7 @@ socketio = SocketIO(app)
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
+migrate = Migrate(app, db)
 
 # Models
 class User(UserMixin, db.Model):
@@ -180,6 +182,21 @@ class Message(db.Model):
     sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_messages')
     receiver = db.relationship('User', foreign_keys=[receiver_id], backref='received_messages')
     item = db.relationship('MarketItem', backref='messages')
+
+# Add this to your models section in app.py
+class MarketRequest(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    request_type = db.Column(db.String(20), nullable=False)  # 'buy' or 'rent'
+    category = db.Column(db.String(50), nullable=False)
+    max_price = db.Column(db.Float, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    neighborhood_id = db.Column(db.Integer, db.ForeignKey('neighborhood.id'), nullable=False)
+    is_fulfilled = db.Column(db.Boolean, default=False)
+    
+    user = db.relationship('User', backref='market_requests')
 
 # New Group Models
 class Group(db.Model):
@@ -506,12 +523,17 @@ def add_incident_comment(incident_id):
 @app.route('/market')
 @login_required
 def market():
-    # Get all market items in the user's neighborhood
     market_items = MarketItem.query.filter_by(
         neighborhood_id=current_user.neighborhood_id
     ).order_by(MarketItem.created_at.desc()).all()
     
-    return render_template('market.html', market_items=market_items)
+    market_requests = MarketRequest.query.filter_by(
+        neighborhood_id=current_user.neighborhood_id
+    ).order_by(MarketRequest.created_at.desc()).all()
+    
+    return render_template('market.html', 
+                         market_items=market_items,
+                         market_requests=market_requests)
 
 # Add this route in app.py with the other market routes
 @app.route('/market/item/<int:item_id>/contact', methods=['GET', 'POST'])
@@ -532,6 +554,61 @@ def contact_seller(item_id):
                              item_id=item.id))
     
     return render_template('contact_seller.html', item=item)
+
+# Add these routes to your app.py
+
+# New Request
+@app.route('/market/request/new', methods=['GET', 'POST'])
+@login_required
+def new_market_request():
+    if request.method == 'POST':
+        title = request.form.get('title')
+        description = request.form.get('description')
+        request_type = request.form.get('request_type')
+        category = request.form.get('category')
+        max_price = request.form.get('max_price')
+        
+        new_request = MarketRequest(
+            title=title,
+            description=description,
+            request_type=request_type,
+            category=category,
+            max_price=float(max_price) if max_price else None,
+            user_id=current_user.id,
+            neighborhood_id=current_user.neighborhood_id
+        )
+        
+        db.session.add(new_request)
+        db.session.commit()
+        flash('Request posted successfully!')
+        return redirect(url_for('market_requests'))
+    
+    return render_template('new_market_request.html')
+
+# View Requests
+@app.route('/market/requests')
+@login_required
+def market_requests():
+    requests = MarketRequest.query.filter_by(
+        neighborhood_id=current_user.neighborhood_id
+    ).order_by(MarketRequest.created_at.desc()).all()
+    
+    return render_template('market_requests.html', requests=requests)
+
+# Mark Request as Fulfilled
+@app.route('/market/request/<int:request_id>/fulfill', methods=['POST'])
+@login_required
+def fulfill_request(request_id):
+    market_request = MarketRequest.query.get_or_404(request_id)
+    
+    # Only request owner can mark as fulfilled
+    if market_request.user_id != current_user.id:
+        abort(403)
+    
+    market_request.is_fulfilled = True
+    db.session.commit()
+    flash('Request marked as fulfilled!')
+    return redirect(url_for('market_requests'))
 
 @app.route('/messages')
 @login_required
