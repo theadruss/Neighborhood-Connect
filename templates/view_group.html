@@ -183,7 +183,7 @@
                                                     {% endif %}
                                                 </small>
                                             </div>
-                                            {% if poll.user_id == current_user.id or is_member.is_admin %}
+                                            {% if poll.user_id == current_user.id or is_member.is_admin or current_user.is_admin %}
                                             <form method="POST" action="{{ url_for('delete_poll', poll_id=poll.id) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this poll?');">
                                                 <button type="submit" class="btn btn-sm btn-outline-danger">
                                                     <i class="fas fa-trash"></i> Delete
