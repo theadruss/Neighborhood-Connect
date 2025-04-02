@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}{{ item.title }} - Neighborhood Connect{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card mb-4">
+                {% if item.image %}
+                <img src="{{ url_for('static', filename='uploads/' + item.image) }}" class="card-img-top" alt="{{ item.title }}">
+                {% else %}
+                <div class="card-img-top bg-secondary text-white d-flex align-items-center justify-content-center" style="height: 400px;">
+                    <i class="fas fa-camera fa-5x"></i>
+                </div>
+                {% endif %}
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <h2 class="card-title">{{ item.title }}</h2>
+                        {% if item.is_sold %}
+                        <span class="badge bg-danger">Sold</span>
+                        {% endif %}
+                    </div>
+                    <p class="h4 text-primary">${{ "%.2f"|format(item.price) }}</p>
+                    <p class="text-muted">Category: {{ item.category|title }}</p>
+                    <hr>
+                    <p class="card-text">{{ item.description }}</p>
+                    <hr>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <small class="text-muted">Posted by {{ item.user.name }} on {{ item.created_at.strftime('%b %d, %Y') }}</small>
+                        </div>
+                        {% if item.user_id == current_user.id and not item.is_sold %}
+                        <form method="POST" action="{{ url_for('mark_item_sold', item_id=item.id) }}">
+                            <button type="submit" class="btn btn-danger">Mark as Sold</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Seller Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <img src="{{ url_for('static', filename='uploads/' + item.user.profile_pic) }}" alt="{{ item.user.name }}" class="profile-img me-3">
+                        <h6>{{ item.user.name }}</h6>
+                    </div>
+                    <p><i class="fas fa-map-marker-alt me-2"></i> {{ item.user.address }}</p>
+                    <p><i class="fas fa-envelope me-2"></i> {{ item.user.email }}</p>
+                    <a href="#" class="btn btn-primary w-100">Contact Seller</a>
+                </div>
+            </div>
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5>Neighborhood Safety</h5>
+                </div>
+                <div class="card-body">
+                    <p>When meeting with sellers:</p>
+                    <ul>
+                        <li>Meet in public places</li>
+                        <li>Bring a friend if possible</li>
+                        <li>Inspect items before purchasing</li>
+                        <li>Trust your instincts</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

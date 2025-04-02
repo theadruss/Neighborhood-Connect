@@ -59,6 +59,34 @@
             background-color: #f8f9fa;
             text-align: center;
         }
+
+        .market-item-card {
+            transition: transform 0.2s ease;
+        }
+        .market-item-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .category-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(0,0,0,0.7);
+        }
+        .sold-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 2rem;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -80,10 +108,7 @@
                             <a class="nav-link" href="{{ url_for('groups') }}">Groups</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('new_post') }}">New Post</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('new_incident') }}">Report Incident</a>
+                            <a class="nav-link" href="{{ url_for('market') }}">Market</a>
                         </li>
                         {% if current_user.is_admin %}
                             <li class="nav-item">

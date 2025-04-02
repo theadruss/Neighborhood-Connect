@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Your Messages{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Your Messages</h4>
+                </div>
+                <div class="card-body">
+                    {% if conversations %}
+                    <div class="list-group">
+                        {% for conversation in conversations %}
+                        <a href="{{ url_for('contact_seller', item_id=conversation.item.id) }}" 
+                           class="list-group-item list-group-item-action">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center">
+                                    <img src="{{ url_for('static', filename='uploads/' + conversation.item.image) if conversation.item.image else url_for('static', filename='images/default-item.jpg') }}" 
+                                         class="rounded me-3" width="60" height="60" alt="{{ conversation.item.title }}">
+                                    <div>
+                                        <h6 class="mb-1">{{ conversation.item.title }}</h6>
+                                        <small class="text-muted">
+                                            {% set other_user = conversation.participants|selectattr('user_id', '!=', current_user.id)|first %}
+                                            {% if other_user %}
+                                            Conversation with {{ other_user.user.name }}
+                                            {% endif %}
+                                        </small>
+                                        <p class="mb-0 text-truncate" style="max-width: 300px;">
+                                            {% if conversation.messages %}
+                                            {{ conversation.messages[-1].content|truncate(50) }}
+                                            {% endif %}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="text-end">
+                                    <small class="text-muted">{{ conversation.updated_at|humanize }}</small>
+                                    {% set unread_count = conversation.messages|selectattr('created_at', '>', conversation.participants|selectattr('user_id', 'equalto', current_user.id)|first.last_read or datetime.min)|list|length %}
+                                    {% if unread_count > 0 %}
+                                    <span class="badge bg-primary rounded-pill">{{ unread_count }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-comments fa-4x text-muted mb-3"></i>
+                        <h5>No messages yet</h5>
+                        <p class="text-muted">Start a conversation about an item in the marketplace</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

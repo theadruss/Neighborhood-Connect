@@ -87,6 +87,85 @@ class IncidentComment(db.Model):
     
     author = db.relationship('User', backref='incident_comments', lazy=True)
 
+class MarketItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    price = db.Column(db.Float, nullable=False)
+    image = db.Column(db.String(200))
+    category = db.Column(db.String(50), nullable=False)  # e.g., "furniture", "electronics", "clothing"
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    neighborhood_id = db.Column(db.Integer, db.ForeignKey('neighborhood.id'), nullable=False)
+    is_sold = db.Column(db.Boolean, default=False)
+    
+    user = db.relationship('User', backref='market_items')
+
+# New Market Item
+@app.route('/market/new', methods=['GET', 'POST'])
+@login_required
+def new_market_item():
+    if request.method == 'POST':
+        title = request.form.get('title')
+        description = request.form.get('description')
+        price = float(request.form.get('price'))
+        category = request.form.get('category')
+        
+        image_filename = None
+        if 'image' in request.files:
+            file = request.files['image']
+            if file.filename != '':
+                filename = secure_filename(file.filename)
+                file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(file_path)
+                image_filename = filename
+        
+        new_item = MarketItem(
+            title=title,
+            description=description,
+            price=price,
+            image=image_filename,
+            category=category,
+            user_id=current_user.id,
+            neighborhood_id=current_user.neighborhood_id
+        )
+        
+        db.session.add(new_item)
+        db.session.commit()
+        flash('Item listed successfully!')
+        return redirect(url_for('market'))
+    
+    return render_template('new_market_item.html')
+
+# View Market Item
+@app.route('/market/item/<int:item_id>')
+@login_required
+def view_market_item(item_id):
+    item = MarketItem.query.get_or_404(item_id)
+    
+    # Ensure item is in user's neighborhood
+    if item.neighborhood_id != current_user.neighborhood_id:
+        abort(403)
+    
+    return render_template('view_market_item.html', item=item)
+
+# Mark Item as Sold
+@app.route('/market/item/<int:item_id>/sold', methods=['POST'])
+@login_required
+def mark_item_sold(item_id):
+    item = MarketItem.query.get_or_404(item_id)
+    
+    # Only item owner can mark as sold
+    if item.user_id != current_user.id:
+        abort(403)
+    
+    item.is_sold = True
+    db.session.commit()
+    flash('Item marked as sold!')
+    return redirect(url_for('view_market_item', item_id=item.id))
+
+
+
 # New Group Models
 class Group(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -407,6 +486,18 @@ def add_incident_comment(incident_id):
     db.session.commit()
     flash('Comment added successfully!')
     return redirect(url_for('view_incident', incident_id=incident_id))
+
+# Market Route
+@app.route('/market')
+@login_required
+def market():
+    # Get all market items in the user's neighborhood
+    market_items = MarketItem.query.filter_by(
+        neighborhood_id=current_user.neighborhood_id
+    ).order_by(MarketItem.created_at.desc()).all()
+    
+    return render_template('market.html', market_items=market_items)
+
 
 # Group Routes
 @app.route('/groups')
