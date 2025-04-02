@@ -1268,39 +1268,66 @@ def admin():
     
     return render_template('admin.html', users=users, posts=posts, incidents=incidents, groups=groups)
 
-@app.route('/admin/post/<int:post_id>/delete', methods=['POST'])
+@app.route('/post/<int:post_id>/delete', methods=['POST'])
 @login_required
 def delete_post(post_id):
-    if not current_user.is_admin:
-        abort(403)
-    
     post = Post.query.get_or_404(post_id)
     
-    # Ensure admin can only delete posts from their neighborhood
-    if post.neighborhood_id != current_user.neighborhood_id:
-        abort(403)
+    # Debug print to check values
+    print(f"Current User ID: {current_user.id}")
+    print(f"Post Author ID: {post.user_id}")
+    print(f"Is Admin: {current_user.is_admin}")
     
+    # Check if user is creator or admin
+    if post.user_id != current_user.id:
+        # If not creator, check if admin
+        if not current_user.is_admin:
+            # If group post, check if user is group admin
+            if post.group_id:
+                group_member = GroupMember.query.filter_by(
+                    user_id=current_user.id,
+                    group_id=post.group_id,
+                    is_admin=True
+                ).first()
+                if not group_member:
+                    abort(403)
+            else:
+                # Neighborhood post but not admin
+                abort(403)
+    
+    # If we get here, user has permission
     db.session.delete(post)
     db.session.commit()
+    
     flash('Post deleted successfully!')
-    return redirect(url_for('admin'))
-
-@app.route('/admin/incident/<int:incident_id>/delete', methods=['POST'])
+    
+    # Redirect appropriately
+    if post.group_id:
+        return redirect(url_for('view_group', group_id=post.group_id))
+    else:
+        return redirect(url_for('dashboard'))
+    
+@app.route('/poll/<int:poll_id>/delete', methods=['POST'])
 @login_required
-def delete_incident(incident_id):
-    if not current_user.is_admin:
-        abort(403)
+def delete_poll(poll_id):
+    poll = Poll.query.get_or_404(poll_id)
     
-    incident = Incident.query.get_or_404(incident_id)
+    # Check permissions - creator or group admin can delete
+    if poll.user_id != current_user.id:
+        # Check if user is group admin
+        group_member = GroupMember.query.filter_by(
+            user_id=current_user.id,
+            group_id=poll.group_id,
+            is_admin=True
+        ).first()
+        if not group_member:
+            abort(403)
     
-    # Ensure admin can only delete incidents from their neighborhood
-    if incident.neighborhood_id != current_user.neighborhood_id:
-        abort(403)
-    
-    db.session.delete(incident)
+    db.session.delete(poll)
     db.session.commit()
-    flash('Incident deleted successfully!')
-    return redirect(url_for('admin'))
+    
+    flash('Poll deleted successfully!')
+    return redirect(url_for('view_group', group_id=poll.group_id))
 
 @app.route('/admin/user/<int:user_id>/toggle_admin', methods=['POST'])
 @login_required
@@ -1340,6 +1367,73 @@ def admin_delete_group(group_id):
     
     flash('Group deleted successfully!')
     return redirect(url_for('admin'))
+
+# For group incidents
+@app.route('/group/incident/<int:incident_id>/delete', methods=['POST'])
+@login_required
+def delete_group_incident(incident_id):
+    incident = GroupIncident.query.get_or_404(incident_id)
+    group = incident.group
+    
+    # Check if user is creator or group admin
+    is_admin = GroupMember.query.filter_by(
+        user_id=current_user.id,
+        group_id=group.id,
+        is_admin=True
+    ).first()
+    
+    if incident.user_id != current_user.id and not is_admin:
+        abort(403)
+    
+    db.session.delete(incident)
+    db.session.commit()
+    flash('Incident deleted successfully!')
+    return redirect(url_for('view_group', group_id=group.id))
+
+# For regular posts (already exists in admin section, just ensure it checks permissions)
+
+    
+    # Check if user is creator or admin (for neighborhood posts) or group admin (for group posts)
+    can_delete = False
+    
+    if post.user_id == current_user.id:
+        can_delete = True
+    elif current_user.is_admin and post.group_id is None:  # Neighborhood admin for neighborhood posts
+        can_delete = True
+    elif post.group_id:  # Check if user is group admin for group posts
+        is_group_admin = GroupMember.query.filter_by(
+            user_id=current_user.id,
+            group_id=post.group_id,
+            is_admin=True
+        ).first()
+        can_delete = bool(is_group_admin)
+    
+    if not can_delete:
+        abort(403)
+    
+    db.session.delete(post)
+    db.session.commit()
+    
+    if post.group_id:
+        flash('Post deleted successfully!')
+        return redirect(url_for('view_group', group_id=post.group_id))
+    else:
+        flash('Post deleted successfully!')
+        return redirect(url_for('dashboard'))
+
+# Similar for regular incidents
+@app.route('/incident/<int:incident_id>/delete', methods=['POST'])
+@login_required
+def delete_incident(incident_id):
+    incident = Incident.query.get_or_404(incident_id)
+    
+    if incident.user_id != current_user.id and not current_user.is_admin:
+        abort(403)
+    
+    db.session.delete(incident)
+    db.session.commit()
+    flash('Incident deleted successfully!')
+    return redirect(url_for('dashboard'))
 
 # At the bottom of your app.py, before the if __name__ == '__main__' block
 def reset_database():

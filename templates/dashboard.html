@@ -17,7 +17,7 @@
         
         {% if posts %}
             {% for post in posts %}
-                <div class="card post-card">
+                <div class="card post-card mb-3">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <div class="d-flex align-items-center">
                             <img src="{{ url_for('static', filename='uploads/' + post.author.profile_pic) }}" alt="Profile" class="profile-img me-2">
@@ -26,6 +26,13 @@
                                 <small class="text-muted">Posted by {{ post.author.name }} on {{ post.created_at.strftime('%B %d, %Y at %I:%M %p') }}</small>
                             </div>
                         </div>
+                        {% if post.user_id == current_user.id or current_user.is_admin %}
+                        <form method="POST" action="{{ url_for('delete_post', post_id=post.id) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this post?');">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                        </form>
+                        {% endif %}
                     </div>
                     <div class="card-body">
                         <p class="card-text">{{ post.content }}</p>
@@ -53,7 +60,7 @@
         
         {% if incidents %}
             {% for incident in incidents %}
-                <div class="card incident-card">
+                <div class="card incident-card mb-3">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <div class="d-flex align-items-center">
                             <img src="{{ url_for('static', filename='uploads/' + incident.reporter.profile_pic) }}" alt="Profile" class="profile-img me-2">
@@ -62,7 +69,16 @@
                                 <small class="text-muted">Reported by {{ incident.reporter.name }} on {{ incident.created_at.strftime('%B %d, %Y at %I:%M %p') }}</small>
                             </div>
                         </div>
-                        <span class="badge bg-danger">{{ incident.incident_type }}</span>
+                        <div>
+                            <span class="badge bg-danger">{{ incident.incident_type }}</span>
+                            {% if incident.user_id == current_user.id or current_user.is_admin %}
+                            <form method="POST" action="{{ url_for('delete_incident', incident_id=incident.id) }}" class="d-inline ms-2" onsubmit="return confirm('Are you sure you want to delete this incident?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <i class="fas fa-trash"></i> Delete
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
                     </div>
                     <div class="card-body">
                         <p class="card-text">{{ incident.description }}</p>
