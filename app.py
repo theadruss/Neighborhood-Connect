@@ -417,6 +417,22 @@ def admin_dashboard():
 
 from datetime import datetime
 
+from flask import g
+
+@app.before_request
+def before_request():
+    if current_user.is_authenticated:
+        g.unread_count = Message.query.filter_by(
+            receiver_id=current_user.id,
+            is_read=False
+        ).count()
+
+@app.context_processor
+def inject_unread_count():
+    if current_user.is_authenticated:
+        return {'unread_message_count': getattr(g, 'unread_count', 0)}
+    return {}
+
 @app.template_filter('time_ago')
 def time_ago_filter(dt):
     now = datetime.utcnow()
@@ -454,6 +470,33 @@ def edit_profile():
         return redirect(url_for('profile'))
     
     return render_template('edit_profile.html', user=current_user)
+
+@app.route('/admin/create_neighborhood', methods=['GET', 'POST'])
+@login_required
+def create_neighborhood():
+    if not current_user.is_admin:
+        abort(403)
+    
+    if request.method == 'POST':
+        name = request.form.get('name')
+        city = request.form.get('city')
+        state = request.form.get('state')
+        zip_code = request.form.get('zip_code')
+        
+        new_neighborhood = Neighborhood(
+            name=name,
+            city=city,
+            state=state,
+            zip_code=zip_code
+        )
+        
+        db.session.add(new_neighborhood)
+        db.session.commit()
+        
+        flash('Neighborhood created successfully!', 'success')
+        return redirect(url_for('admin_dashboard'))
+    
+    return render_template('create_neighborhood.html')  # This loads the template
 
 @app.route('/post/new', methods=['GET', 'POST'])
 @login_required
@@ -604,7 +647,7 @@ def view_incident(incident_id):
     if incident.neighborhood_id != current_user.neighborhood_id:
         abort(403)
     
-    return render_template('view_incident.html', incident=incident)
+    return render_template('view_incident.html', incident=incident) 
 
 @app.route('/incident/<int:incident_id>/comment', methods=['POST'])
 @login_required
@@ -649,6 +692,7 @@ def market():
 @login_required
 def contact_seller(item_id):
     item = MarketItem.query.get_or_404(item_id)
+    seller = User.query.get_or_404(item.user_id)
     
     if item.neighborhood_id != current_user.neighborhood_id:
         abort(403)
@@ -658,11 +702,25 @@ def contact_seller(item_id):
         return redirect(url_for('view_market_item', item_id=item.id))
     
     if request.method == 'POST':
-        return redirect(url_for('view_conversation', 
-                             user_id=item.user_id, 
-                             item_id=item.id))
+        message_content = request.form.get('message')
+        if not message_content:
+            flash('Message cannot be empty')
+            return redirect(url_for('contact_seller', item_id=item.id))
+        
+        # Create the message
+        new_message = Message(
+            sender_id=current_user.id,
+            receiver_id=seller.id,
+            content=message_content,
+            item_id=item.id
+        )
+        db.session.add(new_message)
+        db.session.commit()
+        
+        flash('Message sent successfully!')
+        return redirect(url_for('view_conversation', user_id=seller.id, item_id=item.id))
     
-    return render_template('contact_seller.html', item=item)
+    return render_template('contact_seller.html', item=item, seller=seller)
 
 # Add these routes to your app.py
 
@@ -730,11 +788,17 @@ def messages():
     conversations = []
     for user_id in user_ids:
         user = User.query.get(user_id)
+        if not user:
+            continue
+            
         last_message = Message.query.filter(
             ((Message.sender_id == current_user.id) & (Message.receiver_id == user_id)) |
             ((Message.sender_id == user_id) & (Message.receiver_id == current_user.id))
         ).order_by(Message.timestamp.desc()).first()
         
+        if not last_message:
+            continue
+            
         unread_count = Message.query.filter_by(
             sender_id=user_id,
             receiver_id=current_user.id,
@@ -756,11 +820,7 @@ def messages():
 @login_required
 def view_conversation(user_id):
     try:
-        # Get the other user
-        other_user = User.query.get(user_id)
-        if not other_user:
-            flash("User not found.")
-            return redirect(url_for('messages'))
+        other_user = User.query.get_or_404(user_id)
         
         # Ensure users are in the same neighborhood
         if other_user.neighborhood_id != current_user.neighborhood_id:
@@ -786,9 +846,9 @@ def view_conversation(user_id):
         item = MarketItem.query.get(item_id) if item_id else None
         
         return render_template('conversation.html', 
-                         other_user=other_user, 
-                         messages=messages,
-                         item=item)
+                            other_user=other_user, 
+                            messages=messages,
+                            item=item)
     
     except Exception as e:
         app.logger.error(f"Error in view_conversation: {str(e)}")
@@ -807,6 +867,11 @@ def send_message(user_id):
             flash("Message cannot be empty.")
             return redirect(url_for('view_conversation', user_id=user_id))
         
+        # Ensure users are in the same neighborhood
+        if other_user.neighborhood_id != current_user.neighborhood_id:
+            flash("You can only message users in your neighborhood.")
+            return redirect(url_for('messages'))
+        
         new_message = Message(
             sender_id=current_user.id,
             receiver_id=user_id,
@@ -817,7 +882,7 @@ def send_message(user_id):
         db.session.add(new_message)
         db.session.commit()
         
-        return redirect(url_for('view_conversation', user_id=user_id))
+        return redirect(url_for('view_conversation', user_id=user_id, item_id=item_id))
     
     except Exception as e:
         app.logger.error(f"Error sending message: {str(e)}")
@@ -1289,6 +1354,26 @@ def edit_group(group_id):
         return redirect(url_for('view_group', group_id=group.id))
     
     return render_template('edit_group.html', group=group)
+
+@app.route('/group/incident/<int:incident_id>/delete', methods=['POST'])
+@login_required
+def delete_group_incident(incident_id):
+    incident = GroupIncident.query.get_or_404(incident_id)
+    group = incident.group
+    
+    # Check if user is member and has permission (creator or admin)
+    membership = GroupMember.query.filter_by(
+        user_id=current_user.id,
+        group_id=group.id
+    ).first()
+    
+    if not membership or (incident.user_id != current_user.id and not membership.is_admin):
+        abort(403)
+    
+    db.session.delete(incident)
+    db.session.commit()
+    flash('Incident deleted successfully!')
+    return redirect(url_for('view_group', group_id=group.id))
 
 @app.route('/group/<int:group_id>/delete', methods=['POST'])
 @login_required

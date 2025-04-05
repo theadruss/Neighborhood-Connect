@@ -78,6 +78,13 @@
             right: 10px;
             background-color: rgba(0,0,0,0.7);
         }
+        .nav-link .badge {
+            font-size: 0.6em;
+            position: relative;
+            top: -2px;
+            margin-left: 3px;
+        }
+
         .sold-overlay {
             position: absolute;
             top: 0;
@@ -118,6 +125,9 @@
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('messages') }}">
                                 Messages
+                                {% if unread_message_count > 0 %}
+                                    <span class="badge bg-danger rounded-pill">{{ unread_message_count }}</span>
+                                {% endif %}
                             </a>
                         </li>
                         {% if current_user.is_admin %}
