@@ -28,19 +28,37 @@
                             <strong>Members:</strong> {{ group.members|length }}
                         </p>
                         
-                        {% if not is_member %}
-                            <form method="POST" action="{{ url_for('join_group', group_id=group.id) }}">
-                                <button type="submit" class="btn btn-success">
-                                    <i class="fas fa-user-plus"></i> Join Group
-                                </button>
-                            </form>
-                        {% else %}
-                            <form method="POST" action="{{ url_for('leave_group', group_id=group.id) }}" onsubmit="return confirm('Are you sure you want to leave this group?');">
-                                <button type="submit" class="btn btn-outline-danger">
-                                    <i class="fas fa-sign-out-alt"></i> Leave Group
-                                </button>
-                            </form>
-                        {% endif %}
+                        <!-- Join/Leave Group Button Section -->
+        <div class="mb-4">
+            {% if not is_member %}
+            {% if group.is_private %}
+                <form method="POST" action="{{ url_for('request_join_group', group_id=group.id) }}">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-user-plus"></i> Request to Join
+                    </button>
+                </form>
+            {% else %}
+                <form method="POST" action="{{ url_for('join_group', group_id=group.id) }}">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-user-plus"></i> Join Group
+                    </button>
+                </form>
+            {% endif %}
+        {% else %}
+            {% if is_member.is_admin and group.is_private %}
+                <a href="{{ url_for('manage_join_requests', group_id=group.id) }}" class="btn btn-primary">
+                    <i class="fas fa-users-cog"></i> Manage Requests
+                </a>
+            {% endif %}
+            <form method="POST" action="{{ url_for('leave_group', group_id=group.id) }}" 
+                  onsubmit="return confirm('Are you sure you want to leave this group?');" class="d-inline">
+                <button type="submit" class="btn btn-outline-danger">
+                    <i class="fas fa-sign-out-alt"></i> Leave Group
+                </button>
+            </form>
+        {% endif %}
+            
+        </div>
                     </div>
                 </div>
                 

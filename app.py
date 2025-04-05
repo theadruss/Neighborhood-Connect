@@ -268,10 +268,23 @@ class Group(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     creator_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     neighborhood_id = db.Column(db.Integer, db.ForeignKey('neighborhood.id'), nullable=False)
+    is_private = db.Column(db.Boolean, default=False)
     
     creator = db.relationship('User', backref='created_groups')
     members = db.relationship('GroupMember', backref='group', lazy=True, cascade="all, delete-orphan")
     posts = db.relationship('Post', backref='group', lazy=True)
+
+class GroupJoinRequest(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False)
+    requested_at = db.Column(db.DateTime, default=datetime.utcnow)
+    status = db.Column(db.String(20), default='pending')  # 'pending', 'approved', 'rejected'
+    
+    user = db.relationship('User', backref='group_join_requests')
+    group = db.relationship('Group', backref='join_requests')
+    
+    __table_args__ = (db.UniqueConstraint('user_id', 'group_id', name='_user_group_request_uc'),)
 
 class GroupMember(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -901,12 +914,14 @@ def groups():
     
     return render_template('groups.html', neighborhood_groups=neighborhood_groups, user_groups=user_groups)
 
+# New group creation
 @app.route('/group/new', methods=['GET', 'POST'])
 @login_required
 def new_group():
     if request.method == 'POST':
         name = request.form.get('name')
         description = request.form.get('description')
+        is_private = True if request.form.get('is_private') else False
         
         image_filename = 'group_default.jpg'
         if 'image' in request.files:
@@ -922,19 +937,19 @@ def new_group():
             description=description,
             image=image_filename,
             creator_id=current_user.id,
-            neighborhood_id=current_user.neighborhood_id
+            neighborhood_id=current_user.neighborhood_id,
+            is_private=is_private
         )
         
         db.session.add(new_group)
         db.session.commit()
         
-        # Add creator as a member and admin
+        # Add creator as admin member
         group_member = GroupMember(
             user_id=current_user.id,
             group_id=new_group.id,
             is_admin=True
         )
-        
         db.session.add(group_member)
         db.session.commit()
         
@@ -942,6 +957,97 @@ def new_group():
         return redirect(url_for('view_group', group_id=new_group.id))
     
     return render_template('new_group.html')
+
+# Request to join private group
+@app.route('/group/<int:group_id>/request_join', methods=['POST'])
+@login_required
+def request_join_group(group_id):
+    group = Group.query.get_or_404(group_id)
+    
+    if group.neighborhood_id != current_user.neighborhood_id:
+        abort(403)
+    
+    # Check if already a member
+    if GroupMember.query.filter_by(user_id=current_user.id, group_id=group.id).first():
+        flash('You are already a member of this group.')
+        return redirect(url_for('view_group', group_id=group.id))
+    
+    # Check for existing request
+    existing_request = GroupJoinRequest.query.filter_by(
+        user_id=current_user.id,
+        group_id=group.id,
+        status='pending'
+    ).first()
+    
+    if existing_request:
+        flash('You already have a pending request to join this group.')
+    else:
+        join_request = GroupJoinRequest(
+            user_id=current_user.id,
+            group_id=group.id,
+            status='pending'
+        )
+        db.session.add(join_request)
+        db.session.commit()
+        flash('Your request to join has been submitted to the group admins.')
+    
+    return redirect(url_for('view_group', group_id=group.id))
+
+# Approve join request
+@app.route('/group/request/<int:request_id>/approve', methods=['POST'])
+@login_required
+def approve_join_request(request_id):
+    request = GroupJoinRequest.query.get_or_404(request_id)
+    group = request.group
+    
+    # Verify admin status
+    membership = GroupMember.query.filter_by(
+        user_id=current_user.id,
+        group_id=group.id,
+        is_admin=True
+    ).first()
+    
+    if not membership:
+        abort(403)
+    
+    # Add user to group
+    group_member = GroupMember(
+        user_id=request.user_id,
+        group_id=group.id,
+        is_admin=False
+    )
+    db.session.add(group_member)
+    
+    # Update request status
+    request.status = 'approved'
+    db.session.commit()
+    
+    flash(f"{request.user.name}'s join request has been approved.")
+    return redirect(url_for('manage_join_requests', group_id=group.id))
+
+# Reject join request
+@app.route('/group/request/<int:request_id>/reject', methods=['POST'])
+@login_required
+def reject_join_request(request_id):
+    request = GroupJoinRequest.query.get_or_404(request_id)
+    group = request.group
+    
+    # Verify admin status
+    membership = GroupMember.query.filter_by(
+        user_id=current_user.id,
+        group_id=group.id,
+        is_admin=True
+    ).first()
+    
+    if not membership:
+        abort(403)
+    
+    # Update request status
+    request.status = 'rejected'
+    db.session.commit()
+    
+    flash(f"{request.user.name}'s join request has been rejected.")
+    return redirect(url_for('manage_join_requests', group_id=group.id))
 
 @app.route('/group/<int:group_id>')
 @login_required
@@ -1021,6 +1127,8 @@ def join_group(group_id):
     
     flash('You have joined the group successfully!')
     return redirect(url_for('view_group', group_id=group.id))
+
+
 
 @app.route('/group/<int:group_id>/leave', methods=['POST'])
 @login_required
@@ -1212,6 +1320,29 @@ def vote_poll(poll_id):
     flash('Your vote has been recorded')
     return redirect(url_for('view_group', group_id=poll.group_id))
 
+@app.route('/group/<int:group_id>/manage_requests')
+@login_required
+def manage_join_requests(group_id):
+    group = Group.query.get_or_404(group_id)
+    
+    # Verify admin status
+    membership = GroupMember.query.filter_by(
+        user_id=current_user.id,
+        group_id=group.id,
+        is_admin=True
+    ).first()
+    
+    if not membership:
+        abort(403)
+    
+    requests = GroupJoinRequest.query.filter_by(
+        group_id=group.id,
+        status='pending'
+    ).order_by(GroupJoinRequest.requested_at.desc()).all()
+    
+    return render_template('manage_requests.html', group=group, requests=requests)
+
+
 @app.route('/group/<int:group_id>/make_admin/<int:user_id>', methods=['POST'])
 @login_required
 def make_group_admin(group_id, user_id):
@@ -1340,6 +1471,7 @@ def edit_group(group_id):
     if request.method == 'POST':
         group.name = request.form.get('name')
         group.description = request.form.get('description')
+        group.is_private = 'is_private' in request.form
         
         if 'image' in request.files:
             file = request.files['image']

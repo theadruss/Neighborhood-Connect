@@ -26,6 +26,10 @@
                         <label for="image" class="form-label">Change Group Image (Optional)</label>
                         <input type="file" class="form-control" id="image" name="image">
                     </div>
+                    <div>
+                    <input type="checkbox" class="form-check-input" id="is_private" name="is_private"
+                        {% if group.is_private %} checked {% endif %}> The group is private
+                    </div>
                     <button type="submit" class="btn btn-primary">Save Changes</button>
                     <a href="{{ url_for('view_group', group_id=group.id) }}" class="btn btn-outline-secondary">Cancel</a>
                 </form>

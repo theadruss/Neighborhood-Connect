@@ -11,18 +11,10 @@
             </div>
             <div class="card-body">
                 <form method="POST" action="{{ url_for('new_group') }}" enctype="multipart/form-data">
-                    <div class="mb-3">
-                        <label for="name" class="form-label">Group Name</label>
-                        <input type="text" class="form-control" id="name" name="name" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="description" class="form-label">Description</label>
-                        <textarea class="form-control" id="description" name="description" rows="5" required></textarea>
-                        <div class="form-text">Describe what your group is about and who might be interested in joining.</div>
-                    </div>
-                    <div class="mb-3">
-                        <label for="image" class="form-label">Group Image (Optional)</label>
-                        <input type="file" class="form-control" id="image" name="image">
+                    <!-- Existing fields... -->
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="is_private" name="is_private">
+                        <label class="form-check-label" for="is_private">Make this a private group (requires approval to join)</label>
                     </div>
                     <button type="submit" class="btn btn-primary">Create Group</button>
                     <a href="{{ url_for('groups') }}" class="btn btn-outline-secondary">Cancel</a>
